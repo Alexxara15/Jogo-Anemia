@@ -1,0 +1,613 @@
+import { phases } from './levels.js';
+import { ArcadeGame } from './ArcadeGame.js';
+import { RescueGame } from './RescueGame.js';
+import { AudioManager } from './AudioManager.js';
+
+export class GameManager {
+  constructor() {
+    this.currentLevelIndex = 0;
+    this.score = 0;
+    this.mistakes = 0;
+    this.gameActive = false;
+    this.ui = {
+      app: document.getElementById('app'),
+      container: document.getElementById('game-container'),
+      loading: document.getElementById('loading-screen'),
+      hud: document.getElementById('hud'),
+      questionPanel: document.getElementById('question-panel')
+    };
+
+    this.arcade = null;
+    this.phases = phases;
+    this.unlockedPhases = phases.map(p => p.id); // Unlock all phases by default
+    this.currentPhase = null;
+
+    // Audio Manager
+    this.audioManager = new AudioManager();
+    this.starCanvas = null;
+    this.starAnimationId = null;
+  }
+
+  init() {
+    setTimeout(() => {
+      this.ui.loading.classList.add('hidden');
+      this.renderStartScreen();
+    }, 1500);
+  }
+
+  renderStartScreen() {
+    // Create star field
+    this.createStarField();
+
+    this.ui.container.innerHTML = `
+      <div class="start-screen">
+        <h1 class="glitch" data-text="PROTOCOLO VERMELHO">PROTOCOLO<br>VERMELHO</h1>
+        <p class="subtitle">ARCADE EDITION</p>
+        
+        <div class="instructions">
+          <p>MISSION: PILOT "HEMO-1"</p>
+          <p>TARGET: DESTROY ANEMIA OBSTACLES</p>
+          <p>WARNING: ONE HIT KILLS</p>
+        </div>
+
+        <div style="margin-bottom: 20px; color: var(--neon-yellow); font-size: 12px;">CREDIT 01</div>
+        <button id="start-btn" class="btn pulse">INSERT COIN / START</button>
+      </div>
+    `;
+
+    const startBtn = document.getElementById('start-btn');
+
+    // Add hover sound
+    startBtn.addEventListener('mouseenter', () => {
+      this.audioManager.playSound('beep');
+    });
+
+    // Add click handler with sound
+    startBtn.addEventListener('click', async () => {
+      // Initialize audio on first user interaction
+      await this.audioManager.init();
+      this.audioManager.playSound('click');
+      this.audioManager.startAmbient();
+
+      // Stop star animation
+      if (this.starAnimationId) {
+        cancelAnimationFrame(this.starAnimationId);
+      }
+
+      this.showLevelSelection();
+    });
+  }
+
+  createStarField() {
+    // Remove existing canvas if any
+    const existingCanvas = document.querySelector('.stars');
+    if (existingCanvas) {
+      existingCanvas.remove();
+    }
+
+    // Create canvas for stars
+    const starContainer = document.createElement('div');
+    starContainer.className = 'stars';
+    const canvas = document.createElement('canvas');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    starContainer.appendChild(canvas);
+    document.body.insertBefore(starContainer, document.body.firstChild);
+
+    this.starCanvas = canvas;
+    const ctx = canvas.getContext('2d');
+
+    // Create stars
+    const stars = [];
+    for (let i = 0; i < 200; i++) {
+      stars.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        radius: Math.random() * 1.5,
+        speed: Math.random() * 0.5 + 0.1,
+        opacity: Math.random()
+      });
+    }
+
+    // Animate stars
+    const animate = () => {
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.1)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      stars.forEach(star => {
+        // Draw star
+        ctx.beginPath();
+        ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${star.opacity})`;
+        ctx.fill();
+
+        // Move star
+        star.y += star.speed;
+
+        // Reset star if it goes off screen
+        if (star.y > canvas.height) {
+          star.y = 0;
+          star.x = Math.random() * canvas.width;
+        }
+
+        // Twinkle effect
+        star.opacity += (Math.random() - 0.5) * 0.1;
+        star.opacity = Math.max(0.3, Math.min(1, star.opacity));
+      });
+
+      this.starAnimationId = requestAnimationFrame(animate);
+    };
+
+    animate();
+  }
+
+  removeStarField() {
+    // Stop animation
+    if (this.starAnimationId) {
+      cancelAnimationFrame(this.starAnimationId);
+      this.starAnimationId = null;
+    }
+
+    // Remove canvas
+    const starContainer = document.querySelector('.stars');
+    if (starContainer) {
+      starContainer.remove();
+    }
+
+    this.starCanvas = null;
+  }
+
+  showLevelSelection() {
+    // Create star field for level selection
+    this.createStarField();
+
+    this.ui.container.innerHTML = `
+      <div class="level-selection-modal">
+        <h2 style="color: var(--neon-blue); text-shadow: 0 0 10px var(--neon-blue);">SELECT MISSION</h2>
+        <div class="level-grid">
+          ${this.phases.map(phase => {
+      const isLocked = !this.unlockedPhases.includes(phase.id);
+      return `
+              <div class="level-card ${isLocked ? 'locked' : ''}" data-id="${phase.id}">
+                ${isLocked ? '<div class="lock-icon">🔒</div>' : ''}
+                <h3>${phase.name}</h3>
+                <p>${isLocked ? 'LOCKED' : `${phase.levels.length} QUESTIONS`}</p>
+              </div>
+            `;
+    }).join('')}
+        </div>
+        <button id="back-btn" class="btn back-btn">BACK</button>
+      </div>
+    `;
+
+    document.querySelectorAll('.level-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const phaseId = parseInt(card.dataset.id);
+        console.log('Level card clicked, phaseId:', phaseId, 'unlocked:', this.unlockedPhases);
+        if (this.unlockedPhases.includes(phaseId)) {
+          console.log('Starting game for phase:', phaseId);
+          this.startGame(phaseId);
+        }
+      });
+    });
+
+    document.getElementById('back-btn').addEventListener('click', () => {
+
+      this.currentPhase = this.phases.find(p => p.id === phaseId);
+      this.currentLevelIndex = 0;
+      this.score = 0;
+      this.mistakes = 0;
+      this.gameActive = true;
+
+      this.ui.container.innerHTML = `
+      <canvas id="game-canvas"></canvas>
+      <div id="hud" class="hud">
+        <div class="score">SCORE: <span id="score-val">0</span></div>
+        <div style="font-size: 12px; margin-top: 5px; color: var(--neon-blue);">${this.currentPhase.name}</div>
+      </div>
+      <div id="question-panel" class="question-panel hidden">
+        <!-- Question injected here -->
+      </div>
+    `;
+
+      if (this.currentPhase.id === 1) {
+        this.arcade = new ArcadeGame('game-canvas',
+          () => this.showQuestion(),
+          () => this.showEndScreen(false)
+        );
+      } else {
+        this.arcade = new RescueGame('game-canvas',
+          () => this.showQuestion(),
+          () => this.showEndScreen(false)
+        );
+      }
+
+      this.arcade.start();
+
+      // Initial spawn/start delay
+      setTimeout(() => this.arcade.spawnObstacle(), 2000);
+    }
+
+  startGame(phaseId) {
+      // Show story intro first - Updated: 2025-11-22 18:59
+      console.log('=== STARTGAME CALLED ===', phaseId);
+      this.showStoryIntro(phaseId);
+    }
+
+  showQuestion() {
+      const level = this.currentPhase.levels[this.currentLevelIndex];
+      if(!level) {
+        this.showEndScreen(true);
+        return;
+      }
+
+    const panel = document.getElementById('question-panel');
+      panel.innerHTML = `
+      <div class="panel-content">
+        <h2>${this.currentPhase.id === 2 ? 'ASTRONAUTA EM PERIGO!' : 'ALERTA DE COLISÃO!'}</h2>
+        <p class="description">${level.description}</p>
+        ${this.renderLevelData(level)}
+        <div class="options-grid">
+          ${level.options.map(opt => `
+            <button class="option-btn" data-id="${opt.id}">${opt.text}</button>
+          `).join('')}
+        </div>
+        <div id="feedback-area" class="hidden"></div>
+      </div>
+      `;
+      panel.classList.remove('hidden');
+
+      this.attachEvents(level);
+    }
+
+  renderLevelData(level) {
+      if(level.data) {
+      return `
+      <div class="data-panel">
+        <ul>
+          ${Object.entries(level.data).map(([key, val]) => `<li><strong>${key.toUpperCase()}:</strong> ${val}</li>`).join('')}
+        </ul>
+        </div>
+      `;
+    }
+    return '';
+  }
+
+  attachEvents(level) {
+    const panel = document.getElementById('question-panel');
+    const buttons = panel.querySelectorAll('.option-btn');
+    const feedback = panel.querySelector('#feedback-area');
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.disableAllButtons();
+
+        const optId = btn.dataset.id;
+        const option = level.options.find(o => o.id === optId);
+
+        if (option.correct) {
+          btn.classList.add('correct');
+          this.handleSuccess(feedback, level.successMessage);
+        } else {
+          btn.classList.add('wrong');
+          const correctBtn = Array.from(buttons).find(b => {
+            const opt = level.options.find(o => o.id === b.dataset.id);
+            return opt.correct;
+          });
+          if (correctBtn) correctBtn.classList.add('correct');
+
+          this.mistakes++;
+          this.handleFail(feedback, level.failMessage);
+        }
+      });
+    });
+  }
+
+  handleSuccess(feedback, message) {
+    // Wait for user to see the correct answer (1.5s)
+    setTimeout(() => {
+      document.getElementById('question-panel').classList.add('hidden');
+      this.score += 100;
+      this.updateScore();
+
+      // Strict sequence: Destroy -> Wait -> Next Level
+      this.arcade.destroyCurrentObstacle(() => {
+        this.nextLevel();
+      });
+    }, 1500);
+  }
+
+  handleFail(feedback, message) {
+    // Wait for user to see the correct answer (2s)
+    setTimeout(() => {
+      // Hide panel
+      document.getElementById('question-panel').classList.add('hidden');
+      // Trigger cinematic impact
+      this.arcade.triggerImpact();
+    }, 2000);
+  }
+
+  nextLevel() {
+    this.currentLevelIndex++;
+    if (this.currentLevelIndex >= this.currentPhase.levels.length) {
+      this.handlePhaseComplete();
+    } else {
+      this.arcade.spawnObstacle();
+    }
+  }
+
+  updateScore() {
+    document.getElementById('score-val').textContent = this.score;
+  }
+
+  disableAllButtons() {
+    const buttons = document.querySelectorAll('.option-btn');
+    buttons.forEach(btn => btn.disabled = true);
+  }
+
+  handlePhaseComplete() {
+    // Unlock next phase if exists
+    const nextPhaseId = this.currentPhase.id + 1;
+    const nextPhase = this.phases.find(p => p.id === nextPhaseId);
+
+    if (nextPhase && !this.unlockedPhases.includes(nextPhaseId)) {
+      this.unlockedPhases.push(nextPhaseId);
+    }
+
+    setTimeout(() => this.showEndScreen(true), 1000);
+  }
+
+  showEndScreen(victory) {
+    if (this.arcade) {
+      this.arcade.stop();
+      this.arcade = null;
+    }
+    const color = victory ? 'var(--neon-green)' : 'var(--neon-red)';
+    const title = victory ? 'MISSION ACCOMPLISHED' : 'GAME OVER';
+    const message = victory
+      ? 'SECTOR CLEARED. EXCELLENT WORK, CADET.'
+      : 'MISSION FAILED. PATIENT CRITICAL.';
+
+    this.ui.container.innerHTML = `
+      <div class="end-screen">
+        <h1 style="color: ${color}; text-shadow: 4px 4px 0 #444;">${title}</h1>
+        <p>${message}</p>
+
+        <div class="final-score">
+            SCORE<br>
+            <span style="font-size: 32px;">${this.score}</span>
+        </div>
+
+        <button id="restart-btn" class="btn pulse">${victory ? 'NEXT MISSION' : 'TRY AGAIN'}</button>
+      </div>
+    `;
+
+    document.querySelectorAll('.level-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const phaseId = parseInt(card.dataset.id);
+        if (this.unlockedPhases.includes(phaseId)) {
+          this.startGame(phaseId);
+        }
+      });
+    });
+
+    document.getElementById('back-btn').addEventListener('click', () => {
+      this.renderStartScreen();
+    });
+  }
+
+  startGame(phaseId) {
+    this.currentPhase = this.phases.find(p => p.id === phaseId);
+    this.currentLevelIndex = 0;
+    this.score = 0;
+    this.mistakes = 0;
+    this.gameActive = true;
+
+    this.ui.container.innerHTML = `
+      <canvas id="game-canvas"></canvas>
+      <div id="hud" class="hud">
+        <div class="score">SCORE: <span id="score-val">0</span></div>
+        <div style="font-size: 12px; margin-top: 5px; color: var(--neon-blue);">${this.currentPhase.name}</div>
+      </div>
+      <div id="question-panel" class="question-panel hidden">
+        <!-- Question injected here -->
+      </div>
+    `;
+
+    if (this.currentPhase.id === 1) {
+      this.arcade = new ArcadeGame('game-canvas',
+        () => this.showQuestion(),
+        () => this.showEndScreen(false)
+      );
+    } else {
+      this.arcade = new RescueGame('game-canvas',
+        () => this.showQuestion(),
+        () => this.showEndScreen(false)
+      );
+    }
+
+    this.arcade.start();
+
+    // Initial spawn/start delay
+    setTimeout(() => this.arcade.spawnObstacle(), 2000);
+  }
+
+  showQuestion() {
+    const level = this.currentPhase.levels[this.currentLevelIndex];
+    if (!level) {
+      this.showEndScreen(true);
+      return;
+    }
+
+    const panel = document.getElementById('question-panel');
+    panel.innerHTML = `
+      <div class="panel-content">
+        <h2>${this.currentPhase.id === 2 ? 'ASTRONAUTA EM PERIGO!' : 'ALERTA DE COLISÃO!'}</h2>
+        <p class="description">${level.description}</p>
+        ${this.renderLevelData(level)}
+        <div class="options-grid">
+          ${level.options.map(opt => `
+            <button class="option-btn" data-id="${opt.id}">${opt.text}</button>
+          `).join('')}
+        </div>
+        <div id="feedback-area" class="hidden"></div>
+      </div>
+      `;
+    panel.classList.remove('hidden');
+
+    this.attachEvents(level);
+  }
+
+  renderLevelData(level) {
+    if (level.data) {
+      return `
+      <div class="data-panel">
+        <ul>
+          ${Object.entries(level.data).map(([key, val]) => `<li><strong>${key.toUpperCase()}:</strong> ${val}</li>`).join('')}
+        </ul>
+        </div>
+      `;
+    }
+    return '';
+  }
+
+  attachEvents(level) {
+    const panel = document.getElementById('question-panel');
+    const buttons = panel.querySelectorAll('.option-btn');
+    const feedback = panel.querySelector('#feedback-area');
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.disableAllButtons();
+
+        const optId = btn.dataset.id;
+        const option = level.options.find(o => o.id === optId);
+
+        if (option.correct) {
+          btn.classList.add('correct');
+          this.handleSuccess(feedback, level.successMessage);
+        } else {
+          btn.classList.add('wrong');
+          const correctBtn = Array.from(buttons).find(b => {
+            const opt = level.options.find(o => o.id === b.dataset.id);
+            return opt.correct;
+          });
+          if (correctBtn) correctBtn.classList.add('correct');
+
+          this.mistakes++;
+          this.handleFail(feedback, level.failMessage);
+        }
+      });
+    });
+  }
+
+  handleSuccess(feedback, message) {
+    // Wait for user to see the correct answer (1.5s)
+    setTimeout(() => {
+      document.getElementById('question-panel').classList.add('hidden');
+      this.score += 100;
+      this.updateScore();
+
+      // Strict sequence: Destroy -> Wait -> Next Level
+      this.arcade.destroyCurrentObstacle(() => {
+        this.nextLevel();
+      });
+    }, 1500);
+  }
+
+  handleFail(feedback, message) {
+    // Wait for user to see the correct answer (2s)
+    setTimeout(() => {
+      // Hide panel
+      document.getElementById('question-panel').classList.add('hidden');
+      // Trigger cinematic impact
+      this.arcade.triggerImpact();
+    }, 2000);
+  }
+
+  nextLevel() {
+    this.currentLevelIndex++;
+    if (this.currentLevelIndex >= this.currentPhase.levels.length) {
+      this.handlePhaseComplete();
+    } else {
+      this.arcade.spawnObstacle();
+    }
+  }
+
+  updateScore() {
+    document.getElementById('score-val').textContent = this.score;
+  }
+
+  disableAllButtons() {
+    const buttons = document.querySelectorAll('.option-btn');
+    buttons.forEach(btn => btn.disabled = true);
+  }
+
+  handlePhaseComplete() {
+    // Unlock next phase if exists
+    const nextPhaseId = this.currentPhase.id + 1;
+    const nextPhase = this.phases.find(p => p.id === nextPhaseId);
+
+    if (nextPhase && !this.unlockedPhases.includes(nextPhaseId)) {
+      this.unlockedPhases.push(nextPhaseId);
+    }
+
+    setTimeout(() => this.showEndScreen(true), 1000);
+  }
+
+  showEndScreen(victory) {
+    if (this.arcade) {
+      this.arcade.stop();
+      this.arcade = null;
+    }
+
+    // Play sound based on result
+    if (victory) {
+      this.audioManager.playSound('victory');
+    } else {
+      this.audioManager.playSound('defeat');
+    }
+
+    // Recreate star field for end screen
+    this.createStarField();
+
+    const color = victory ? 'var(--neon-green)' : 'var(--neon-red)';
+    const title = victory ? 'MISSION ACCOMPLISHED' : 'GAME OVER';
+    const message = victory
+      ? 'SECTOR CLEARED. EXCELLENT WORK, CADET.'
+      : 'MISSION FAILED. PATIENT CRITICAL.';
+
+    this.ui.container.innerHTML = `
+      <div class="end-screen">
+        <h1 style="color: ${color}; text-shadow: 4px 4px 0 #444;">${title}</h1>
+        <p>${message}</p>
+
+        <div class="final-score">
+            SCORE<br>
+            <span style="font-size: 32px;">${this.score}</span>
+        </div>
+
+        <button id="restart-btn" class="btn pulse">${victory ? 'NEXT MISSION' : 'TRY AGAIN'}</button>
+      </div>
+      `;
+
+    const restartBtn = document.getElementById('restart-btn');
+
+    // Add hover sound
+    restartBtn.addEventListener('mouseenter', () => {
+      this.audioManager.playSound('beep');
+    });
+
+    // Add click handler with sound
+    restartBtn.addEventListener('click', () => {
+      this.audioManager.playSound('click');
+
+      // Stop star animation
+      if (this.starAnimationId) {
+        cancelAnimationFrame(this.starAnimationId);
+      }
+
+      this.showLevelSelection();
+    });
+  }
+}

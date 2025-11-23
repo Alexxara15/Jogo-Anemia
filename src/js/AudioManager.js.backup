@@ -1,0 +1,348 @@
+export class AudioManager {
+    constructor() {
+        this.audioContext = null;
+        this.sounds = {};
+        this.ambientOscillator = null;
+        this.ambientGain = null;
+        this.masterVolume = 0.3;
+        this.muted = false;
+        this.initialized = false;
+    }
+
+    async init() {
+        if (this.initialized) return;
+
+        try {
+            // Create Audio Context (requires user interaction)
+            this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            this.initialized = true;
+
+            // Create sounds
+            this.createBeepSound();
+            this.createClickSound();
+            this.createVictorySound();
+            this.createDefeatSound();
+            this.createLaserSound();
+            this.createExplosionSound();
+            this.createShipExplosionSound();
+            this.createBlackHolePullSound();
+            this.createRopeDescendSound();
+            this.createRopeAscendSound();
+        } catch (error) {
+            console.warn('Audio initialization failed:', error);
+        }
+    }
+
+    // Start ambient space sound
+    startAmbient() {
+        if (!this.audioContext || this.muted) return;
+
+        try {
+            // Resume context if suspended (browser autoplay policy)
+            if (this.audioContext.state === 'suspended') {
+                this.audioContext.resume();
+            }
+
+            // Create oscillator for ambient sound
+            this.ambientOscillator = this.audioContext.createOscillator();
+            this.ambientGain = this.audioContext.createGain();
+
+            // Low frequency hum
+            this.ambientOscillator.type = 'sine';
+            this.ambientOscillator.frequency.setValueAtTime(55, this.audioContext.currentTime); // Low A note
+
+            // Very quiet
+            this.ambientGain.gain.setValueAtTime(0, this.audioContext.currentTime);
+            this.ambientGain.gain.linearRampToValueAtTime(
+                this.masterVolume * 0.1,
+                this.audioContext.currentTime + 2
+            );
+
+            // Connect and start
+            this.ambientOscillator.connect(this.ambientGain);
+            this.ambientGain.connect(this.audioContext.destination);
+            this.ambientOscillator.start();
+        } catch (error) {
+            console.warn('Ambient sound failed:', error);
+        }
+    }
+
+    stopAmbient() {
+        if (this.ambientOscillator) {
+            try {
+                this.ambientGain.gain.linearRampToValueAtTime(
+                    0,
+                    this.audioContext.currentTime + 1
+                );
+                const gain = this.audioContext.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(800, this.audioContext.currentTime);
+
+                gain.gain.setValueAtTime(this.masterVolume * 0.1, this.audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
+
+                osc.connect(gain);
+                gain.connect(this.audioContext.destination);
+
+                osc.start();
+                osc.stop(this.audioContext.currentTime + 0.1);
+            };
+        }
+
+        createClickSound() {
+            // Click sound for button press
+            this.sounds.click = () => {
+                if (!this.audioContext || this.muted) return;
+
+                const osc = this.audioContext.createOscillator();
+                const gain = this.audioContext.createGain();
+
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(400, this.audioContext.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, this.audioContext.currentTime + 0.1);
+
+                gain.gain.setValueAtTime(this.masterVolume * 0.2, this.audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
+
+                osc.connect(gain);
+                gain.connect(this.audioContext.destination);
+
+                osc.start();
+                osc.stop(this.audioContext.currentTime + 0.1);
+            };
+        }
+
+        createVictorySound() {
+            // Victory fanfare
+            this.sounds.victory = () => {
+                if (!this.audioContext || this.muted) return;
+
+                const notes = [523.25, 659.25, 783.99]; // C, E, G
+                const startTime = this.audioContext.currentTime;
+
+                notes.forEach((freq, i) => {
+                    const osc = this.audioContext.createOscillator();
+                    const gain = this.audioContext.createGain();
+
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, startTime + i * 0.15);
+
+                    gain.gain.setValueAtTime(0, startTime + i * 0.15);
+                    gain.gain.linearRampToValueAtTime(this.masterVolume * 0.3, startTime + i * 0.15 + 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.01, startTime + i * 0.15 + 0.4);
+
+                    osc.connect(gain);
+                    gain.connect(this.audioContext.destination);
+
+                    osc.start(startTime + i * 0.15);
+                    osc.stop(startTime + i * 0.15 + 0.4);
+                });
+            };
+        }
+
+        createDefeatSound() {
+            // Defeat sound (descending)
+            this.sounds.defeat = () => {
+                if (!this.audioContext || this.muted) return;
+
+                const osc = this.audioContext.createOscillator();
+                const gain = this.audioContext.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(400, this.audioContext.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(100, this.audioContext.currentTime + 0.5);
+
+                gain.gain.setValueAtTime(this.masterVolume * 0.3, this.audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.5);
+
+                osc.connect(gain);
+                gain.connect(this.audioContext.destination);
+
+                osc.start();
+                osc.stop(this.audioContext.currentTime + 0.5);
+            };
+        }
+
+        playSound(soundName) {
+            if (this.sounds[soundName]) {
+                this.sounds[soundName]();
+            }
+        }
+
+        toggleMute() {
+            this.muted = !this.muted;
+            if (this.muted) {
+                this.stopAmbient();
+            }
+            return this.muted;
+        }
+
+        setVolume(volume) {
+            this.masterVolume = Math.max(0, Math.min(1, volume));
+        }
+
+        createLaserSound() {
+            // Laser shot sound (pew!)
+            this.sounds.laser = () => {
+                if (!this.audioContext || this.muted) return;
+
+                const osc = this.audioContext.createOscillator();
+                const gain = this.audioContext.createGain();
+
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(800, this.audioContext.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(200, this.audioContext.currentTime + 0.1);
+
+                gain.gain.setValueAtTime(this.masterVolume * 0.2, this.audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.1);
+
+                osc.connect(gain);
+                gain.connect(this.audioContext.destination);
+
+                osc.start();
+                osc.stop(this.audioContext.currentTime + 0.1);
+            };
+        }
+
+        createExplosionSound() {
+            // Asteroid explosion (boom!)
+            this.sounds.explosion = () => {
+                if (!this.audioContext || this.muted) return;
+
+                // White noise burst
+                const bufferSize = this.audioContext.sampleRate * 0.3;
+                const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+                const data = buffer.getChannelData(0);
+
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = this.audioContext.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.audioContext.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(1000, this.audioContext.currentTime);
+                filter.frequency.exponentialRampToValueAtTime(100, this.audioContext.currentTime + 0.3);
+
+                const gain = this.audioContext.createGain();
+                gain.gain.setValueAtTime(this.masterVolume * 0.3, this.audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.3);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.audioContext.destination);
+
+                noise.start();
+                noise.stop(this.audioContext.currentTime + 0.3);
+            };
+        }
+
+        createShipExplosionSound() {
+            // Ship explosion (bigger boom!)
+            this.sounds.shipExplosion = () => {
+                if (!this.audioContext || this.muted) return;
+
+                // Longer, more dramatic explosion
+                const bufferSize = this.audioContext.sampleRate * 0.8;
+                const buffer = this.audioContext.createBuffer(1, bufferSize, this.audioContext.sampleRate);
+                const data = buffer.getChannelData(0);
+
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] = Math.random() * 2 - 1;
+                }
+
+                const noise = this.audioContext.createBufferSource();
+                noise.buffer = buffer;
+
+                const filter = this.audioContext.createBiquadFilter();
+                filter.type = 'lowpass';
+                filter.frequency.setValueAtTime(2000, this.audioContext.currentTime);
+                filter.frequency.exponentialRampToValueAtTime(50, this.audioContext.currentTime + 0.8);
+
+                const gain = this.audioContext.createGain();
+                gain.gain.setValueAtTime(this.masterVolume * 0.5, this.audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.8);
+
+                noise.connect(filter);
+                filter.connect(gain);
+                gain.connect(this.audioContext.destination);
+
+                noise.start();
+                noise.stop(this.audioContext.currentTime + 0.8);
+            };
+        }
+
+        createBlackHolePullSound() {
+            // Black hole pulling sound (whoooosh down)
+            this.sounds.blackHolePull = () => {
+                if (!this.audioContext || this.muted) return;
+
+                const osc = this.audioContext.createOscillator();
+                const gain = this.audioContext.createGain();
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(300, this.audioContext.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(50, this.audioContext.currentTime + 1.5);
+
+                gain.gain.setValueAtTime(this.masterVolume * 0.3, this.audioContext.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 1.5);
+
+                osc.connect(gain);
+                gain.connect(this.audioContext.destination);
+
+                osc.start();
+                osc.stop(this.audioContext.currentTime + 1.5);
+            };
+        }
+
+        createRopeDescendSound() {
+            // Rope descending (mechanical whirr down)
+            this.sounds.ropeDescend = () => {
+                if (!this.audioContext || this.muted) return;
+
+                const osc = this.audioContext.createOscillator();
+                const gain = this.audioContext.createGain();
+
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(150, this.audioContext.currentTime);
+                osc.frequency.linearRampToValueAtTime(120, this.audioContext.currentTime + 0.5);
+
+                gain.gain.setValueAtTime(this.masterVolume * 0.15, this.audioContext.currentTime);
+                gain.gain.linearRampToValueAtTime(this.masterVolume * 0.15, this.audioContext.currentTime + 0.5);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.6);
+
+                osc.connect(gain);
+                gain.connect(this.audioContext.destination);
+
+                osc.start();
+                osc.stop(this.audioContext.currentTime + 0.6);
+            };
+        }
+
+        createRopeAscendSound() {
+            // Rope ascending (mechanical whirr up)
+            this.sounds.ropeAscend = () => {
+                if (!this.audioContext || this.muted) return;
+
+                const osc = this.audioContext.createOscillator();
+                const gain = this.audioContext.createGain();
+
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(120, this.audioContext.currentTime);
+                osc.frequency.linearRampToValueAtTime(180, this.audioContext.currentTime + 0.8);
+
+                gain.gain.setValueAtTime(this.masterVolume * 0.15, this.audioContext.currentTime);
+                gain.gain.linearRampToValueAtTime(this.masterVolume * 0.15, this.audioContext.currentTime + 0.8);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + 0.9);
+
+                osc.connect(gain);
+                gain.connect(this.audioContext.destination);
+
+                osc.start();
+                osc.stop(this.audioContext.currentTime + 0.9);
+            };
+        }
+    }
