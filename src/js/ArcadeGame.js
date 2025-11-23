@@ -70,12 +70,13 @@ export class ArcadeGame {
         if (this.obstaclePending) return;
 
         this.asteroids.push({
-            x: this.width + 50,
+            x: this.width + 200,
             y: this.height / 2,
             size: 60,
             hp: 1,
             active: true,
-            doomed: false // If true, will explode on laser contact
+            doomed: false, // If true, will explode on laser contact
+            spawnTime: performance.now() // Track when asteroid spawned
         });
         this.obstaclePending = true;
         this.isCrashing = false; // Reset crash speed
@@ -172,13 +173,19 @@ export class ArcadeGame {
         this.asteroids.forEach(ast => {
             if (!ast.active) return;
 
-            // Movement logic
-            let speed = 5;
-            if (this.isCrashing) speed = 25; // Dramatic crash speed
+            // Movement logic with initial delay
+            let speed = 0;
+            const timeSinceSpawn = performance.now() - ast.spawnTime;
+
+            // Only start moving after 1 second delay
+            if (timeSinceSpawn > 1000) {
+                speed = 5;
+                if (this.isCrashing) speed = 25; // Dramatic crash speed
+            }
             ast.x -= speed;
 
-            // Trigger Question
-            if (!this.isCrashing && ast.x < this.width - 300 && this.obstaclePending) {
+            // Trigger Question (adjusted for mobile screens)
+            if (!this.isCrashing && ast.x < this.width - 150 && this.obstaclePending) {
                 this.isPaused = true;
                 this.obstaclePending = false;
                 this.onObstacleEncountered();

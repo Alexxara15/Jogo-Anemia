@@ -507,3 +507,229 @@ body {
         transform: translate(-50%, -50%);
     }
 }
+/* ========================================
+   MOBILE RESPONSIVENESS
+   ======================================== */
+
+/* Tablets e telas médias */
+@media (max-width: 768px) {
+    .start-screen h1 {
+        font-size: 32px;
+        line-height: 1.3;
+    }
+
+    .subtitle {
+        font-size: 14px;
+        margin-bottom: 30px;
+    }
+
+    .instructions {
+        max-width: 90%;
+        padding: 15px;
+    }
+
+    .instructions p {
+        font-size: 10px;
+    }
+
+    .question-panel {
+        width: 95%;
+        padding: 15px;
+    }
+
+    .panel-content h2 {
+        font-size: 18px;
+        margin-bottom: 15px;
+    }
+
+    .description {
+        font-size: 11px;
+        line-height: 1.5;
+    }
+
+    .data-panel li {
+        font-size: 10px;
+    }
+
+    .options-grid {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+
+    .option-btn {
+        font-size: 11px;
+        padding: 12px;
+    }
+
+    .btn {
+        font-size: 12px;
+        padding: 12px 25px;
+    }
+
+    .end-screen h1 {
+        font-size: 32px;
+    }
+
+    .end-screen p {
+        font-size: 12px;
+        padding: 0 20px;
+    }
+
+    .final-score {
+        font-size: 20px;
+    }
+
+    .level-selection-modal {
+        width: 95%;
+        padding: 1.5rem;
+    }
+
+    .level-card h3 {
+        font-size: 1rem;
+    }
+
+    .level-card p {
+        font-size: 0.7rem;
+    }
+
+    .story-title {
+        font-size: 28px;
+        margin-bottom: 30px;
+    }
+
+    .crawl-text {
+        font-size: 14px;
+        width: 90%;
+    }
+
+    .crawl-text h1 {
+        font-size: 24px;
+        margin-bottom: 20px;
+    }
+
+    #start-mission-btn {
+        font-size: 14px;
+        padding: 15px 30px;
+    }
+}
+
+/* Smartphones */
+@media (max-width: 480px) {
+    .start-screen h1 {
+        font-size: 20px;
+        line-height: 1.4;
+    }
+
+    .subtitle {
+        font-size: 11px;
+        margin-bottom: 20px;
+        letter-spacing: 1px;
+    }
+
+    .instructions {
+        padding: 12px;
+        margin-bottom: 30px;
+    }
+
+    .instructions p {
+        font-size: 9px;
+        line-height: 1.5;
+    }
+
+    .question-panel {
+        width: 98%;
+        padding: 12px;
+    }
+
+    .panel-content h2 {
+        font-size: 14px;
+        margin-bottom: 12px;
+    }
+
+    .description {
+        font-size: 9px;
+        margin-bottom: 15px;
+    }
+
+    .data-panel {
+        padding: 8px;
+        margin-bottom: 15px;
+    }
+
+    .data-panel li {
+        font-size: 8px;
+        margin: 3px 0;
+    }
+
+    .option-btn {
+        font-size: 9px;
+        padding: 10px;
+    }
+
+    .btn {
+        font-size: 10px;
+        padding: 10px 20px;
+    }
+
+    .end-screen h1 {
+        font-size: 24px;
+    }
+
+    .end-screen p {
+        font-size: 10px;
+        padding: 0 15px;
+    }
+
+    .final-score {
+        font-size: 18px;
+        margin-bottom: 30px;
+    }
+
+    .level-selection-modal {
+        width: 98%;
+        padding: 1rem;
+        gap: 1rem;
+    }
+
+    .level-card {
+        padding: 12px;
+        min-height: 70px;
+    }
+
+    .level-card h3 {
+        font-size: 0.85rem;
+        margin-bottom: 0.3rem;
+    }
+
+    .level-card p {
+        font-size: 0.6rem;
+    }
+
+    .story-title {
+        font-size: 20px;
+        margin-bottom: 20px;
+        letter-spacing: 2px;
+    }
+
+    .crawl-text {
+        font-size: 11px;
+        width: 95%;
+        line-height: 1.4;
+    }
+
+    .crawl-text h1 {
+        font-size: 18px;
+        margin-bottom: 15px;
+    }
+
+    #start-mission-btn {
+        font-size: 12px;
+        padding: 12px 25px;
+    }
+
+    .hud {
+        font-size: 16px;
+        top: 15px;
+        left: 15px;
+    }
+}
